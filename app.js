@@ -74,6 +74,7 @@ btnThemeToggle.addEventListener('click', () => {
 function getApiKeys() {
     return {
         groq: localStorage.getItem('spatial_groq_key') || '',
+        gemini: localStorage.getItem('spatial_gemini_key') || '',
         openai: localStorage.getItem('spatial_openai_key') || '',
         claude: localStorage.getItem('spatial_claude_key') || ''
     };
@@ -81,7 +82,7 @@ function getApiKeys() {
 
 function updateModeDisplay() {
     const keys = getApiKeys();
-    if (keys.groq || keys.openai || keys.claude) {
+    if (keys.groq || keys.gemini || keys.openai || keys.claude) {
         modeDisplay.textContent = "Live API Connected";
         modeDisplay.className = "text-indigo-400 font-semibold";
     } else {
@@ -92,6 +93,7 @@ function updateModeDisplay() {
 
 btnConfig.addEventListener('click', () => {
     document.getElementById('groqKeyInput').value = localStorage.getItem('spatial_groq_key') || '';
+    document.getElementById('geminiKeyInput').value = localStorage.getItem('spatial_gemini_key') || '';
     document.getElementById('openaiKeyInput').value = localStorage.getItem('spatial_openai_key') || '';
     document.getElementById('claudeKeyInput').value = localStorage.getItem('spatial_claude_key') || '';
     configModal.classList.remove('hidden');
@@ -101,6 +103,7 @@ btnCloseModal.addEventListener('click', () => configModal.classList.add('hidden'
 
 btnSaveConfig.addEventListener('click', () => {
     localStorage.setItem('spatial_groq_key', document.getElementById('groqKeyInput').value.trim());
+    localStorage.setItem('spatial_gemini_key', document.getElementById('geminiKeyInput').value.trim());
     localStorage.setItem('spatial_openai_key', document.getElementById('openaiKeyInput').value.trim());
     localStorage.setItem('spatial_claude_key', document.getElementById('claudeKeyInput').value.trim());
     configModal.classList.add('hidden');
@@ -206,17 +209,15 @@ function resetMetrics() {
 
 // --- Execution Controls (Run, Pause, Stop) ---
 btnRun.addEventListener('click', async () => {
-    // Handle resuming from pause
     if (isRunning && isPaused) {
         const pausedDuration = Date.now() - pauseStart;
-        startTime += pausedDuration; // Offset elapsed time by pause duration
+        startTime += pausedDuration; 
         
         isPaused = false;
         btnRun.classList.add('hidden');
         btnPause.classList.remove('hidden');
         statusIndicator.textContent = "Running Benchmark...";
         
-        // Restart the clock interval
         timerInterval = setInterval(() => {
             metricTime.textContent = `${((Date.now() - startTime) / 1000).toFixed(1)}s`;
         }, 100);
@@ -240,7 +241,6 @@ btnRun.addEventListener('click', async () => {
 
     const keys = getApiKeys();
 
-    // Main execution loop runs indefinitely until exit reached or manually stopped
     while (isRunning) {
         if (isPaused) {
             await new Promise(r => setTimeout(r, 100));
@@ -256,8 +256,13 @@ btnRun.addEventListener('click', async () => {
         let nextMove = null;
         let thoughtProcess = null;
 
+        // Model Routing priority: Groq -> Gemini -> Simulation
         if (keys.groq) {
             const res = await fetchGroqNextMove(keys.groq);
+            nextMove = res.move;
+            thoughtProcess = res.thought;
+        } else if (keys.gemini) {
+            const res = await fetchGeminiNextMove(keys.gemini);
             nextMove = res.move;
             thoughtProcess = res.thought;
         } else {
@@ -274,7 +279,7 @@ btnRun.addEventListener('click', async () => {
 btnPause.addEventListener('click', () => {
     isPaused = true;
     pauseStart = Date.now();
-    clearInterval(timerInterval); // Immediately freeze the timer
+    clearInterval(timerInterval);
 
     btnPause.classList.add('hidden');
     btnRun.classList.remove('hidden');
@@ -326,9 +331,14 @@ function executeMove(direction, thought) {
     drawMaze();
 }
 
+// --- Groq API Fetch Implementation ---
 async function fetchGroqNextMove(apiKey) {
     const localVision = getLocalVision(agentPos.x, agentPos.y);
-    const systemPrompt = `You are an AI benchmark agent navigating a 2D maze. Position: (${agentPos.x}, ${agentPos.y}). Target: (${goalPos.x}, ${goalPos.y}). Vision: ${JSON.stringify(localVision)}. Respond ONLY with JSON: {"thought": "...", "move": "UP"|"DOWN"|"LEFT"|"RIGHT"}`;
+    const systemPrompt = `You are an AI spatial reasoning benchmark agent navigating a 2D maze. 
+Your current coordinate is (${agentPos.x}, ${agentPos.y}). Target exit coordinate is (${goalPos.x}, ${goalPos.y}).
+Your visible adjacent moves: ${JSON.stringify(localVision)}.
+Respond ONLY with a valid JSON object formatted exactly as:
+{"thought": "<your brief step-by-step reasoning>", "move": "UP"|"DOWN"|"LEFT"|"RIGHT"}`;
 
     try {
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -349,7 +359,43 @@ async function fetchGroqNextMove(apiKey) {
         const parsed = JSON.parse(data.choices[0].message.content);
         return { move: parsed.move.toUpperCase(), thought: parsed.thought };
     } catch (err) {
-        logTerminal("API ERROR", "Groq fetch failed. Falling back to simulation step.");
+        logTerminal("API ERROR", "Groq request failed. Falling back to simulation step.");
+        return simulateCognitiveMove();
+    }
+}
+
+// --- Gemini API Fetch Implementation ---
+async function fetchGeminiNextMove(apiKey) {
+    const localVision = getLocalVision(agentPos.x, agentPos.y);
+    const promptText = `You are an AI spatial reasoning benchmark agent navigating a 2D maze. 
+Your current coordinate is (${agentPos.x}, ${agentPos.y}). Target exit coordinate is (${goalPos.x}, ${goalPos.y}).
+Your visible adjacent moves: ${JSON.stringify(localVision)}.
+Respond ONLY with a valid JSON object formatted exactly as:
+{"thought": "<your brief step-by-step reasoning>", "move": "UP"|"DOWN"|"LEFT"|"RIGHT"}`;
+
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{ text: promptText }]
+                }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    temperature: 0.1
+                }
+            })
+        });
+
+        const data = await response.json();
+        const textContent = data.candidates[0].content.parts[0].text;
+        const parsed = JSON.parse(textContent);
+        return { move: parsed.move.toUpperCase(), thought: parsed.thought };
+    } catch (err) {
+        logTerminal("API ERROR", "Gemini request failed. Falling back to simulation step.");
         return simulateCognitiveMove();
     }
 }
