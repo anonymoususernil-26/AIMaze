@@ -12,37 +12,50 @@
 <body class="bg-slate-950 text-slate-100 h-screen w-screen overflow-hidden font-sans flex flex-col">
 
     <!-- Top Header Bar -->
-    <header class="h-14 flex-none bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between">
-        <div class="flex items-center space-x-3">
-            <span class="text-xl">🧩</span>
-            <div>
-                <h1 class="text-sm font-bold tracking-wide text-white uppercase">AI Spatial Reasoning Engine</h1>
-                <p class="text-[10px] text-slate-400 font-mono">Real-Time Cognitive Maze Benchmark Benchmark UI</p>
-            </div>
+<header class="h-14 flex-none bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between">
+    <div class="flex items-center space-x-2">
+        <span class="text-xl">🧩</span>
+        <div>
+            <h1 class="text-xs font-bold tracking-wide text-white uppercase">AIMaze Benchmark</h1>
+            <p class="text-[9px] text-slate-400 font-mono">Cognitive Spatial Reasoning Engine</p>
+        </div>
+    </div>
+
+    <!-- Controls Header -->
+    <div class="flex items-center space-x-2">
+        <!-- Color Palette Picker -->
+        <div class="flex items-center space-x-1 bg-slate-800 border border-slate-700 rounded px-2 py-1">
+            <span class="text-[10px] text-slate-400">Agent Color:</span>
+            <input type="color" id="agentColorPicker" value="#6366f1" class="w-4 h-4 bg-transparent cursor-pointer border-0">
         </div>
 
-        <!-- Controls Header -->
-        <div class="flex items-center space-x-3">
-            <label class="text-xs text-slate-400 font-medium">Maze Grid:</label>
-            <select id="gridSizeSelect" class="bg-slate-800 border border-slate-700 text-xs rounded px-2 py-1 text-slate-200 focus:outline-none focus:border-indigo-500">
-                <option value="5">5x5 Simple Grid</option>
-                <option value="15" selected>15x15 Complex Maze</option>
-                <option value="25">25x25 Super-Critical Maze</option>
-            </select>
+        <select id="gridSizeSelect" class="bg-slate-800 border border-slate-700 text-xs rounded px-2 py-1 text-slate-200">
+            <option value="5">5x5 Grid</option>
+            <option value="15" selected>15x15 Maze</option>
+            <option value="25">25x25 Super-Critical</option>
+        </select>
 
-            <button id="btnGenerate" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded transition">
-                New Maze
-            </button>
+        <button id="btnGenerate" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-2.5 py-1.5 rounded transition">
+            New Maze
+        </button>
 
-            <button id="btnRun" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-1.5 rounded transition flex items-center space-x-1">
-                <span>▶ Run Test</span>
-            </button>
+        <button id="btnRun" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded transition">
+            ▶ Run
+        </button>
 
-            <button id="btnConfig" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium px-3 py-1.5 rounded text-slate-300 transition">
-                ⚙️ API Keys
-            </button>
-        </div>
-    </header>
+        <button id="btnPause" class="bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold px-3 py-1.5 rounded transition hidden">
+            ⏸ Pause
+        </button>
+
+        <button id="btnThemeToggle" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs px-2.5 py-1.5 rounded text-slate-300 transition" title="Toggle Light/Dark Mode">
+            🌙
+        </button>
+
+        <button id="btnConfig" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium px-2.5 py-1.5 rounded text-slate-300 transition">
+            ⚙️ Keys
+        </button>
+    </div>
+</header>
 
     <!-- Main Workspace (Locked Height, Non-Sliding Grid) -->
     <main class="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
