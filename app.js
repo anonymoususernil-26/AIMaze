@@ -10,11 +10,12 @@ let isRunning = false;
 let isPaused = false;
 let agentColor = '#6366f1';
 
-// Metrics
+// Metrics & Clock Tracking
 let stepCount = 0;
 let loopCount = 0;
 let stuckCount = 0;
 let startTime = 0;
+let pauseStart = 0;
 let timerInterval = null;
 let visitedHistory = [];
 
@@ -107,7 +108,7 @@ btnSaveConfig.addEventListener('click', () => {
     logTerminal("System", "API Keys updated successfully.");
 });
 
-// --- Solvable Maze Generator ---
+// --- Solvable Maze Generator (Recursive Backtracking DFS) ---
 function generateMaze(size) {
     gridSize = parseInt(size);
     goalPos = { x: gridSize - 1, y: gridSize - 1 };
@@ -205,12 +206,20 @@ function resetMetrics() {
 
 // --- Execution Controls (Run, Pause, Stop) ---
 btnRun.addEventListener('click', async () => {
+    // Handle resuming from pause
     if (isRunning && isPaused) {
-        // Resume execution
+        const pausedDuration = Date.now() - pauseStart;
+        startTime += pausedDuration; // Offset elapsed time by pause duration
+        
         isPaused = false;
         btnRun.classList.add('hidden');
         btnPause.classList.remove('hidden');
         statusIndicator.textContent = "Running Benchmark...";
+        
+        // Restart the clock interval
+        timerInterval = setInterval(() => {
+            metricTime.textContent = `${((Date.now() - startTime) / 1000).toFixed(1)}s`;
+        }, 100);
         return;
     }
 
@@ -231,13 +240,13 @@ btnRun.addEventListener('click', async () => {
 
     const keys = getApiKeys();
 
+    // Main execution loop runs indefinitely until exit reached or manually stopped
     while (isRunning) {
         if (isPaused) {
             await new Promise(r => setTimeout(r, 100));
             continue;
         }
 
-        // Complete unconstrained loop until goal is reached
         if (agentPos.x === goalPos.x && agentPos.y === goalPos.y) {
             logTerminal("SUCCESS", `Goal reached successfully in ${stepCount} steps and ${((Date.now() - startTime) / 1000).toFixed(1)}s!`);
             stopBenchmark();
@@ -264,6 +273,9 @@ btnRun.addEventListener('click', async () => {
 
 btnPause.addEventListener('click', () => {
     isPaused = true;
+    pauseStart = Date.now();
+    clearInterval(timerInterval); // Immediately freeze the timer
+
     btnPause.classList.add('hidden');
     btnRun.classList.remove('hidden');
     btnRun.textContent = "▶ Resume";
