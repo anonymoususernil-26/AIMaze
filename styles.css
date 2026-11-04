@@ -1,0 +1,65 @@
+/* ==========================================
+   AI Spatial Reasoning Benchmark - Styles
+   Non-Sliding Screen-Fit Viewport Rules
+   ========================================== */
+
+/* Reset box-sizing and margins for strict viewport containment */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* Lock HTML and Body to exact viewport dimensions */
+html, body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background-color: #020617; /* Tailwind slate-950 */
+    color: #f8fafc; /* Tailwind slate-50 */
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Scrollbar Styling for Terminal Logs & Modals */
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+
+::-webkit-scrollbar-track {
+    background: #090d16;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #1e293b; /* Tailwind slate-800 */
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #334155; /* Tailwind slate-700 */
+}
+
+/* Canvas crisp rendering fixes for high-DPI (Retina) displays */
+canvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+/* Modal animation utilities */
+#configModal:not(.hidden) {
+    display: flex;
+    animation: fadeIn 0.15s ease-out forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
