@@ -1,17 +1,16 @@
 /* ==========================================================================
    AI Spatial Reasoning Engine - Core JavaScript (app.js)
-   Handles: Solvable Maze Generation, Canvas Drawing, Groq/OpenAI/Claude APIs,
-   Real-Time Thinking Log Streaming & Performance Metrics Matrix.
    ========================================================================== */
 
-// --- Global State ---
 let gridSize = 15;
-let grid = []; // 0 = Path, 1 = Wall
+let grid = []; 
 let agentPos = { x: 0, y: 0 };
 let goalPos = { x: 14, y: 14 };
 let isRunning = false;
+let isPaused = false;
+let agentColor = '#6366f1';
 
-// Metrics Matrix
+// Metrics
 let stepCount = 0;
 let loopCount = 0;
 let stuckCount = 0;
@@ -25,6 +24,9 @@ const ctx = canvas.getContext('2d');
 const gridSizeSelect = document.getElementById('gridSizeSelect');
 const btnGenerate = document.getElementById('btnGenerate');
 const btnRun = document.getElementById('btnRun');
+const btnPause = document.getElementById('btnPause');
+const btnThemeToggle = document.getElementById('btnThemeToggle');
+const agentColorPicker = document.getElementById('agentColorPicker');
 const btnConfig = document.getElementById('btnConfig');
 const configModal = document.getElementById('configModal');
 const btnCloseModal = document.getElementById('btnCloseModal');
@@ -33,13 +35,11 @@ const modeDisplay = document.getElementById('modeDisplay');
 const terminalLog = document.getElementById('terminalLog');
 const statusIndicator = document.getElementById('statusIndicator');
 
-// Metrics DOM Elements
 const metricSteps = document.getElementById('metricSteps');
 const metricTime = document.getElementById('metricTime');
 const metricLoops = document.getElementById('metricLoops');
 const metricStuck = document.getElementById('metricStuck');
 
-// --- Initialization ---
 window.addEventListener('load', () => {
     updateModeDisplay();
     resizeCanvas();
@@ -56,7 +56,20 @@ function resizeCanvas() {
     drawMaze();
 }
 
-// --- API Key Management (localStorage) ---
+// --- Theme & Color Picker Handlers ---
+agentColorPicker.addEventListener('input', (e) => {
+    agentColor = e.target.value;
+    drawMaze();
+});
+
+btnThemeToggle.addEventListener('click', () => {
+    document.body.classList.toggle('light-mode');
+    const isLight = document.body.classList.contains('light-mode');
+    btnThemeToggle.textContent = isLight ? '☀️' : '🌙';
+    drawMaze();
+});
+
+// --- API Key Management ---
 function getApiKeys() {
     return {
         groq: localStorage.getItem('spatial_groq_key') || '',
@@ -68,7 +81,7 @@ function getApiKeys() {
 function updateModeDisplay() {
     const keys = getApiKeys();
     if (keys.groq || keys.openai || keys.claude) {
-        modeDisplay.textContent = "Live API Connection Active";
+        modeDisplay.textContent = "Live API Connected";
         modeDisplay.className = "text-indigo-400 font-semibold";
     } else {
         modeDisplay.textContent = "Simulated Fallback Mode";
@@ -76,12 +89,10 @@ function updateModeDisplay() {
     }
 }
 
-// Modal Handlers
 btnConfig.addEventListener('click', () => {
-    const keys = getApiKeys();
-    document.getElementById('groqKeyInput').value = keys.groq;
-    document.getElementById('openaiKeyInput').value = keys.openai;
-    document.getElementById('claudeKeyInput').value = keys.claude;
+    document.getElementById('groqKeyInput').value = localStorage.getItem('spatial_groq_key') || '';
+    document.getElementById('openaiKeyInput').value = localStorage.getItem('spatial_openai_key') || '';
+    document.getElementById('claudeKeyInput').value = localStorage.getItem('spatial_claude_key') || '';
     configModal.classList.remove('hidden');
 });
 
@@ -93,23 +104,20 @@ btnSaveConfig.addEventListener('click', () => {
     localStorage.setItem('spatial_claude_key', document.getElementById('claudeKeyInput').value.trim());
     configModal.classList.add('hidden');
     updateModeDisplay();
-    logTerminal("System", "API Keys saved to localStorage successfully.");
+    logTerminal("System", "API Keys updated successfully.");
 });
 
-// --- Solvable Maze Generator (Recursive Backtracking DFS) ---
+// --- Solvable Maze Generator ---
 function generateMaze(size) {
     gridSize = parseInt(size);
     goalPos = { x: gridSize - 1, y: gridSize - 1 };
     agentPos = { x: 0, y: 0 };
     
-    // Fill grid with walls (1)
     grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(1));
 
     function carve(x, y) {
         grid[y][x] = 0;
-        const dirs = [
-            [0, -2], [0, 2], [-2, 0], [2, 0]
-        ].sort(() => Math.random() - 0.5);
+        const dirs = [[0, -2], [0, 2], [-2, 0], [2, 0]].sort(() => Math.random() - 0.5);
 
         for (let [dx, dy] of dirs) {
             let nx = x + dx, ny = y + dy;
@@ -121,13 +129,12 @@ function generateMaze(size) {
     }
 
     carve(0, 0);
-    // Ensure exit target is clear
     grid[goalPos.y][goalPos.x] = 0;
     grid[goalPos.y - 1][goalPos.x] = 0;
     
     resetMetrics();
     drawMaze();
-    logTerminal("Maze Engine", `Generated ${gridSize}x${gridSize} guaranteed solvable maze layout.`);
+    logTerminal("Maze Engine", `Generated ${gridSize}x${gridSize} solvable maze layout.`);
 }
 
 gridSizeSelect.addEventListener('change', (e) => generateMaze(e.target.value));
@@ -139,35 +146,31 @@ function drawMaze() {
     const cellSize = canvas.width / gridSize;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw Grid Cells
+    const isLight = document.body.classList.contains('light-mode');
+    const wallColor = isLight ? '#cbd5e1' : '#1e293b';
+    const pathColor = isLight ? '#ffffff' : '#020617';
+
     for (let y = 0; y < gridSize; y++) {
         for (let x = 0; x < gridSize; x++) {
-            if (grid[y][x] === 1) {
-                ctx.fillStyle = '#1e293b'; // Wall
-                ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
-                ctx.strokeStyle = '#0f172a';
-                ctx.strokeRect(x * cellSize, y * cellSize, cellSize, cellSize);
-            } else {
-                ctx.fillStyle = '#020617'; // Open Path
-                ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
-            }
+            ctx.fillStyle = grid[y][x] === 1 ? wallColor : pathColor;
+            ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
         }
     }
 
-    // Highlight Start Point (0,0)
+    // Start Point
     ctx.fillStyle = '#10b981';
     ctx.beginPath();
     ctx.arc(cellSize / 2, cellSize / 2, cellSize * 0.25, 0, Math.PI * 2);
     ctx.fill();
 
-    // Highlight Exit Goal (N-1, N-1)
+    // Goal Exit
     ctx.fillStyle = '#f43f5e';
     ctx.beginPath();
     ctx.arc((goalPos.x + 0.5) * cellSize, (goalPos.y + 0.5) * cellSize, cellSize * 0.35, 0, Math.PI * 2);
     ctx.fill();
 
-    // Draw Agent Position
-    ctx.fillStyle = '#6366f1'; // Indigo Agent Dot
+    // Dynamic Agent Color
+    ctx.fillStyle = agentColor;
     ctx.beginPath();
     ctx.arc((agentPos.x + 0.5) * cellSize, (agentPos.y + 0.5) * cellSize, cellSize * 0.35, 0, Math.PI * 2);
     ctx.fill();
@@ -176,11 +179,9 @@ function drawMaze() {
     ctx.stroke();
 }
 
-// --- Terminal Logging Utility ---
 function logTerminal(source, message, thought = null) {
     const entry = document.createElement('div');
     entry.className = "border-b border-slate-900 pb-1.5";
-    
     let html = `<span class="text-indigo-400 font-bold">[${source}]</span> <span class="text-slate-300">${message}</span>`;
     if (thought) {
         html += `<div class="text-amber-400/90 text-[11px] mt-0.5 bg-slate-900/60 p-1.5 rounded border border-slate-800">💭 <i>${thought}</i></div>`;
@@ -202,12 +203,23 @@ function resetMetrics() {
     clearInterval(timerInterval);
 }
 
-// --- Execution & Real-Time AI API Loop ---
+// --- Execution Controls (Run, Pause, Stop) ---
 btnRun.addEventListener('click', async () => {
+    if (isRunning && isPaused) {
+        // Resume execution
+        isPaused = false;
+        btnRun.classList.add('hidden');
+        btnPause.classList.remove('hidden');
+        statusIndicator.textContent = "Running Benchmark...";
+        return;
+    }
+
     if (isRunning) return;
+
     isRunning = true;
-    btnRun.disabled = true;
-    btnRun.classList.add('opacity-50');
+    isPaused = false;
+    btnRun.classList.add('hidden');
+    btnPause.classList.remove('hidden');
     statusIndicator.textContent = "Running Benchmark...";
     statusIndicator.className = "text-[10px] font-mono text-emerald-400 animate-pulse";
 
@@ -220,9 +232,14 @@ btnRun.addEventListener('click', async () => {
     const keys = getApiKeys();
 
     while (isRunning) {
-        // Check win condition
+        if (isPaused) {
+            await new Promise(r => setTimeout(r, 100));
+            continue;
+        }
+
+        // Complete unconstrained loop until goal is reached
         if (agentPos.x === goalPos.x && agentPos.y === goalPos.y) {
-            logTerminal("SUCCESS", `Goal reached in ${stepCount} steps and ${((Date.now() - startTime) / 1000).toFixed(1)}s!`);
+            logTerminal("SUCCESS", `Goal reached successfully in ${stepCount} steps and ${((Date.now() - startTime) / 1000).toFixed(1)}s!`);
             stopBenchmark();
             break;
         }
@@ -231,39 +248,40 @@ btnRun.addEventListener('click', async () => {
         let thoughtProcess = null;
 
         if (keys.groq) {
-            // Live Groq API Request
             const res = await fetchGroqNextMove(keys.groq);
             nextMove = res.move;
             thoughtProcess = res.thought;
         } else {
-            // Simulated Fallback Reasoning Loop
-            await new Promise(r => setTimeout(r, 250)); // Simulated network latency
+            await new Promise(r => setTimeout(r, 200)); 
             const res = simulateCognitiveMove();
             nextMove = res.move;
             thoughtProcess = res.thought;
         }
 
         executeMove(nextMove, thoughtProcess);
-
-        // Safety limit to prevent infinite loops during benchmarks
-        if (stepCount > 250) {
-            logTerminal("SYSTEM", "Benchmark stopped: Step limit of 250 exceeded.");
-            stopBenchmark();
-            break;
-        }
     }
+});
+
+btnPause.addEventListener('click', () => {
+    isPaused = true;
+    btnPause.classList.add('hidden');
+    btnRun.classList.remove('hidden');
+    btnRun.textContent = "▶ Resume";
+    statusIndicator.textContent = "Paused";
+    statusIndicator.className = "text-[10px] font-mono text-amber-400";
 });
 
 function stopBenchmark() {
     isRunning = false;
-    btnRun.disabled = false;
-    btnRun.classList.remove('opacity-50');
+    isPaused = false;
+    btnPause.classList.add('hidden');
+    btnRun.classList.remove('hidden');
+    btnRun.textContent = "▶ Run";
     clearInterval(timerInterval);
     statusIndicator.textContent = "Idle / Completed";
     statusIndicator.className = "text-[10px] font-mono text-slate-500";
 }
 
-// --- Execute Agent Movement & Metrics ---
 function executeMove(direction, thought) {
     let targetX = agentPos.x;
     let targetY = agentPos.y;
@@ -273,18 +291,16 @@ function executeMove(direction, thought) {
     if (direction === 'LEFT') targetX--;
     if (direction === 'RIGHT') targetX++;
 
-    // Check Wall Collision
     if (targetX < 0 || targetX >= gridSize || targetY < 0 || targetY >= gridSize || grid[targetY][targetX] === 1) {
         stuckCount++;
         metricStuck.textContent = stuckCount;
-        logTerminal("AGENT", `Attempted invalid move [${direction}] into wall! Position unchanged.`, thought);
+        logTerminal("AGENT", `Invalid move [${direction}] into wall.`, thought);
     } else {
         agentPos.x = targetX;
         agentPos.y = targetY;
         stepCount++;
         metricSteps.textContent = stepCount;
 
-        // Track Loop / Backtrack metric
         const posKey = `${agentPos.x},${agentPos.y}`;
         if (visitedHistory.filter(p => p === posKey).length >= 2) {
             loopCount++;
@@ -292,20 +308,15 @@ function executeMove(direction, thought) {
         }
         visitedHistory.push(posKey);
 
-        logTerminal("AGENT", `Moved [${direction}] to tile (${agentPos.x}, ${agentPos.y})`, thought);
+        logTerminal("AGENT", `Moved [${direction}] to (${agentPos.x}, ${agentPos.y})`, thought);
     }
 
     drawMaze();
 }
 
-// --- Groq API Fetch Implementation ---
 async function fetchGroqNextMove(apiKey) {
     const localVision = getLocalVision(agentPos.x, agentPos.y);
-    const systemPrompt = `You are an AI spatial reasoning benchmark agent navigating a 2D maze. 
-Your current coordinate is (${agentPos.x}, ${agentPos.y}). Target exit coordinate is (${goalPos.x}, ${goalPos.y}).
-Your visible adjacent moves: ${JSON.stringify(localVision)}.
-Respond ONLY with a valid JSON object formatted exactly as:
-{"thought": "<your brief step-by-step reasoning>", "move": "UP"|"DOWN"|"LEFT"|"RIGHT"}`;
+    const systemPrompt = `You are an AI benchmark agent navigating a 2D maze. Position: (${agentPos.x}, ${agentPos.y}). Target: (${goalPos.x}, ${goalPos.y}). Vision: ${JSON.stringify(localVision)}. Respond ONLY with JSON: {"thought": "...", "move": "UP"|"DOWN"|"LEFT"|"RIGHT"}`;
 
     try {
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -326,12 +337,11 @@ Respond ONLY with a valid JSON object formatted exactly as:
         const parsed = JSON.parse(data.choices[0].message.content);
         return { move: parsed.move.toUpperCase(), thought: parsed.thought };
     } catch (err) {
-        logTerminal("API ERROR", "Groq request failed or misformatted. Falling back to simulation step.");
+        logTerminal("API ERROR", "Groq fetch failed. Falling back to simulation step.");
         return simulateCognitiveMove();
     }
 }
 
-// Helper: Get local vision of surrounding 4 cells
 function getLocalVision(x, y) {
     return {
         UP: (y > 0 && grid[y - 1][x] === 0) ? "OPEN" : "WALL",
@@ -341,18 +351,15 @@ function getLocalVision(x, y) {
     };
 }
 
-// --- Simulated Cognitive Fallback Logic ---
 function simulateCognitiveMove() {
     const vision = getLocalVision(agentPos.x, agentPos.y);
     const openMoves = Object.keys(vision).filter(d => vision[d] === "OPEN");
-
-    // Simple heuristic toward goal (down/right priority)
     let chosenMove = openMoves[Math.floor(Math.random() * openMoves.length)] || "DOWN";
     if (vision.RIGHT === "OPEN" && Math.random() > 0.4) chosenMove = "RIGHT";
     if (vision.DOWN === "OPEN" && Math.random() > 0.4) chosenMove = "DOWN";
 
     return {
         move: chosenMove,
-        thought: `Evaluating position (${agentPos.x},${agentPos.y}). Target at (${goalPos.x},${goalPos.y}). Choosing path: ${chosenMove}.`
+        thought: `Evaluating position (${agentPos.x},${agentPos.y}) towards target (${goalPos.x},${goalPos.y}). Selected: ${chosenMove}.`
     };
 }
